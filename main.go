@@ -18,6 +18,20 @@ import (
 const (
 	fetchTitle     = "Fetching local branches..."
 	defaultTimeout = 5 * time.Second
+	helpText       = `Interactively switch to a local branch.
+
+USAGE
+  gh sw [branch]
+  gh sw [flags]
+
+FLAGS
+  --help    Show help for command
+
+EXAMPLES
+  $ gh sw              # Interactive branch selection
+  $ gh sw feature/auth # Switch to specific branch
+  $ gh sw -            # Switch to previous branch
+`
 )
 
 var grayStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
@@ -28,6 +42,10 @@ func main() {
 
 	args := os.Args[1:]
 	if len(args) > 0 {
+		if args[0] == "--help" || args[0] == "-h" {
+			fmt.Print(helpText)
+			return
+		}
 		if err := switchBranch(ctx, args[0]); err != nil {
 			exitWithStatus(err)
 		}
