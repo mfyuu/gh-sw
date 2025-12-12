@@ -43,12 +43,14 @@ USAGE
   gh sw [flags]
 
 FLAGS
-  --help    Show help for command
+  -r, --remote    Select from remote branches (+ current branch)
+  --help          Show help for command
 
 EXAMPLES
   $ gh sw              # Interactive branch selection
   $ gh sw feature/auth # Switch to specific branch
   $ gh sw -            # Switch to previous branch
+  $ gh sw -r           # Select from remote branches
 ```
 
 ### Modes
@@ -56,3 +58,4 @@ EXAMPLES
 - **Interactive (`gh sw`)**: Display all local branches and select one to switch to
 - **Direct (`gh sw <branch>`)**: Switch directly to the specified branch
 - **Previous (`gh sw -`)**: Switch to the previously checked out branch
+- **Remote (`gh sw -r`)**: Display all remote branches and select one to switch to
