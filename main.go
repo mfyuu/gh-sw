@@ -86,7 +86,7 @@ func interactiveSwitch(ctx context.Context) {
 		return
 	}
 
-	// 選択肢を構築（現在のブランチ以外）
+	// Build options excluding the current branch
 	var options []huh.Option[string]
 
 	for _, branch := range branches {
@@ -95,7 +95,7 @@ func interactiveSwitch(ctx context.Context) {
 		}
 	}
 
-	// 他に切り替え可能なブランチがない場合
+	// No other branches to switch to
 	if len(options) == 0 {
 		fmt.Fprintln(os.Stderr, grayStyle.Render(fmt.Sprintf("Only one local branch exists: '%s'.", current)))
 		return
@@ -150,7 +150,7 @@ func exitWithStatus(err error) {
 		os.Exit(exitErr.ExitCode())
 	}
 
-	// 非ExitErrorのみメッセージを出す
+	// Print message only for non-ExitError
 	fmt.Fprintln(os.Stderr, err)
 	os.Exit(1)
 }
