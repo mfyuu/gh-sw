@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/huh"
+	"github.com/charmbracelet/huh/spinner"
 	"github.com/charmbracelet/lipgloss"
 )
 
@@ -59,7 +60,17 @@ func getBranches() (branches []string, current string, err error) {
 }
 
 func interactiveSwitch() {
-	branches, current, err := getBranches()
+	var branches []string
+	var current string
+	var err error
+
+	_ = spinner.New().
+		Title("Fetching local branches...").
+		Action(func() {
+			branches, current, err = getBranches()
+		}).
+		Run()
+
 	if err != nil {
 		os.Exit(1)
 	}
