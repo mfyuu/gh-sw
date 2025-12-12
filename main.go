@@ -20,10 +20,7 @@ const (
 	defaultTimeout = 5 * time.Second
 )
 
-var (
-	currentStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("220")) // Gold
-	grayStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
-)
+var grayStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
 
 func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
@@ -105,7 +102,8 @@ func interactiveSwitch(ctx context.Context) {
 	form := huh.NewForm(
 		huh.NewGroup(
 			huh.NewSelect[string]().
-				Title(currentStyle.Render("  * " + current)).
+				Title("Select a branch to switch to:").
+				Description(grayStyle.Render("  * " + current)).
 				Options(options...).
 				Value(&selected),
 		),
