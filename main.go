@@ -24,6 +24,7 @@ USAGE
   gh sw [flags]
 
 FLAGS
+  -a, --all       Select from all branches (local + remote)
   -r, --remote    Select from remote branches (+ current branch)
   --help          Show help for command
 
@@ -31,6 +32,7 @@ EXAMPLES
   $ gh sw              # Interactive branch selection
   $ gh sw feature/auth # Switch to specific branch
   $ gh sw -            # Switch to previous branch
+  $ gh sw -a           # Select from all branches
   $ gh sw -r           # Select from remote branches
 `
 )
@@ -47,8 +49,11 @@ func main() {
 		case "--help", "-h":
 			fmt.Print(helpText)
 			return
+		case "--all", "-a":
+			interactiveSwitchAll(ctx)
+			return
 		case "--remote", "-r":
-			interactiveSwitch(ctx, true)
+			interactiveSwitchRemote(ctx)
 			return
 		}
 		if err := switchBranch(args[0]); err != nil {
@@ -57,7 +62,7 @@ func main() {
 		return
 	}
 
-	interactiveSwitch(ctx, false)
+	interactiveSwitchLocal(ctx)
 }
 
 func getCurrentBranch() (string, error) {
@@ -127,14 +132,6 @@ func getRemoteBranches(ctx context.Context) ([]string, error) {
 	slices.Sort(branches)
 
 	return branches, nil
-}
-
-func interactiveSwitch(ctx context.Context, remote bool) {
-	if remote {
-		interactiveSwitchRemote(ctx)
-	} else {
-		interactiveSwitchLocal(ctx)
-	}
 }
 
 func interactiveSwitchLocal(ctx context.Context) {
@@ -234,6 +231,64 @@ func interactiveSwitchRemote(ctx context.Context) {
 	}
 }
 
+func interactiveSwitchAll(ctx context.Context) {
+	localBranches, remoteBranches, err := fetchAllBranches(ctx)
+
+	if err != nil {
+		exitWithStatus(err)
+	}
+
+	if len(localBranches) == 0 && len(remoteBranches) == 0 {
+		fmt.Fprintln(os.Stderr, grayStyle.Render("No branches found."))
+		return
+	}
+
+	current, _ := getCurrentBranch()
+
+	var options []huh.Option[string]
+	// Add current branch first with * prefix and gray style
+	if current != "" {
+		options = append(options, huh.NewOption(grayStyle.Render("* "+current), current))
+	}
+	// Add local branches
+	for _, branch := range localBranches {
+		if branch != current {
+			options = append(options, huh.NewOption(branch, branch))
+		}
+	}
+	// Add remote branches
+	for _, branch := range remoteBranches {
+		options = append(options, huh.NewOption(branch, branch))
+	}
+
+	var selected string
+	form := huh.NewForm(
+		huh.NewGroup(
+			huh.NewSelect[string]().
+				Title("Select a branch to switch to:").
+				Options(options...).
+				Value(&selected),
+		),
+	)
+
+	err = form.Run()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, grayStyle.Render("Operation cancelled."))
+		return
+	}
+
+	// Strip remote prefix if remote branch selected: origin/main -> main
+	if strings.Contains(selected, "/") {
+		if idx := strings.Index(selected, "/"); idx != -1 {
+			selected = selected[idx+1:]
+		}
+	}
+
+	if err := switchBranch(selected); err != nil {
+		exitWithStatus(err)
+	}
+}
+
 func fetchLocalBranches(ctx context.Context) ([]string, error) {
 	var branches []string
 	var fetchErr error
@@ -260,6 +315,24 @@ func fetchRemoteBranches(ctx context.Context) ([]string, error) {
 		Run()
 
 	return branches, fetchErr
+}
+
+func fetchAllBranches(ctx context.Context) ([]string, []string, error) {
+	var localBranches, remoteBranches []string
+	var fetchErr error
+
+	_ = spinner.New().
+		Title("Fetching branches...").
+		Action(func() {
+			localBranches, fetchErr = getLocalBranches(ctx)
+			if fetchErr != nil {
+				return
+			}
+			remoteBranches, fetchErr = getRemoteBranches(ctx)
+		}).
+		Run()
+
+	return localBranches, remoteBranches, fetchErr
 }
 
 func switchBranch(branch string) error {
