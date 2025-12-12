@@ -1,43 +1,49 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/huh"
 	"github.com/charmbracelet/huh/spinner"
 	"github.com/charmbracelet/lipgloss"
 )
 
+const (
+	fetchTitle     = "Fetching local branches..."
+	defaultTimeout = 5 * time.Second
+)
+
+var (
+	currentStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("220")) // Gold
+	grayStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
+)
+
 func main() {
+	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+	defer cancel()
+
 	args := os.Args[1:]
 	if len(args) > 0 {
-		switchBranch(args[0])
-	} else {
-		interactiveSwitch()
+		if err := switchBranch(ctx, args[0]); err != nil {
+			exitWithStatus(err)
+		}
+		return
 	}
+
+	interactiveSwitch(ctx)
 }
 
-func getBranches() (branches []string, current string, err error) {
-	// 現在のブランチを取得
-	currentCmd := exec.Command("git", "branch", "--show-current")
-	currentOut, err := currentCmd.Output()
-	if err != nil {
-		var exitErr *exec.ExitError
-		if errors.As(err, &exitErr) {
-			os.Stderr.Write(exitErr.Stderr)
-		}
-		return nil, "", err
-	}
-	current = strings.TrimSpace(string(currentOut))
-
-	// ブランチ一覧を取得
-	listCmd := exec.Command("git", "branch", "--format=%(refname:short)")
-	listOut, err := listCmd.Output()
+func getBranches(ctx context.Context) (branches []string, current string, err error) {
+	cmd := exec.CommandContext(ctx, "git", "for-each-ref", "--format=%(refname:short)\t%(HEAD)", "refs/heads")
+	cmd.Stderr = os.Stderr
+	output, err := cmd.Output()
 	if err != nil {
 		var exitErr *exec.ExitError
 		if errors.As(err, &exitErr) {
@@ -46,33 +52,34 @@ func getBranches() (branches []string, current string, err error) {
 		return nil, "", err
 	}
 
-	lines := strings.Split(strings.TrimSpace(string(listOut)), "\n")
+	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
 	for _, line := range lines {
-		if line != "" {
-			branches = append(branches, line)
+		if line == "" {
+			continue
+		}
+
+		fields := strings.Split(line, "\t")
+		branch := fields[0]
+		branches = append(branches, branch)
+		if len(fields) > 1 && fields[1] == "*" {
+			current = branch
 		}
 	}
 
-	// アルファベット順にソート
+	if current == "" {
+		return nil, "", fmt.Errorf("failed to detect current branch")
+	}
+
 	slices.Sort(branches)
 
 	return branches, current, nil
 }
 
-func interactiveSwitch() {
-	var branches []string
-	var current string
-	var err error
-
-	_ = spinner.New().
-		Title("Fetching local branches...").
-		Action(func() {
-			branches, current, err = getBranches()
-		}).
-		Run()
+func interactiveSwitch(ctx context.Context) {
+	branches, current, err := fetchBranches(ctx)
 
 	if err != nil {
-		os.Exit(1)
+		exitWithStatus(err)
 	}
 
 	if len(branches) == 0 {
@@ -80,7 +87,6 @@ func interactiveSwitch() {
 	}
 
 	// 選択肢を構築（現在のブランチ以外）
-	currentStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("220")) // Gold
 	var options []huh.Option[string]
 
 	for _, branch := range branches {
@@ -91,7 +97,6 @@ func interactiveSwitch() {
 
 	// 他に切り替え可能なブランチがない場合
 	if len(options) == 0 {
-		grayStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
 		fmt.Fprintln(os.Stderr, grayStyle.Render(fmt.Sprintf("Only one local branch exists: '%s'.", current)))
 		return
 	}
@@ -108,17 +113,44 @@ func interactiveSwitch() {
 
 	err = form.Run()
 	if err != nil {
-		grayStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
 		fmt.Fprintln(os.Stderr, grayStyle.Render(fmt.Sprintf("Operation cancelled, staying on '%s'.", current)))
 		return
 	}
 
-	switchBranch(selected)
+	if err := switchBranch(ctx, selected); err != nil {
+		exitWithStatus(err)
+	}
 }
 
-func switchBranch(branch string) {
-	cmd := exec.Command("git", "switch", branch)
+func fetchBranches(ctx context.Context) ([]string, string, error) {
+	var branches []string
+	var current string
+	var fetchErr error
+
+	_ = spinner.New().
+		Title(fetchTitle).
+		Action(func() {
+			branches, current, fetchErr = getBranches(ctx)
+		}).
+		Run()
+
+	return branches, current, fetchErr
+}
+
+func switchBranch(ctx context.Context, branch string) error {
+	cmd := exec.CommandContext(ctx, "git", "switch", branch)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	cmd.Run()
+	return cmd.Run()
+}
+
+func exitWithStatus(err error) {
+	var exitErr *exec.ExitError
+	if errors.As(err, &exitErr) {
+		os.Exit(exitErr.ExitCode())
+	}
+
+	// 非ExitErrorのみメッセージを出す
+	fmt.Fprintln(os.Stderr, err)
+	os.Exit(1)
 }
