@@ -43,15 +43,25 @@ USAGE
   gh sw [flags]
 
 FLAGS
-  -a, --all       Select from all branches (local + remote)
-  -r, --remote    Select from remote branches (+ current branch)
-  --help          Show help for command
+  -a, --all           Select from all branches (local + remote)
+  -c, --create NAME   Create and switch to a new branch
+  -C, --force-create NAME
+                      Create/reset and switch to a new branch
+  -d, --detach        Detach HEAD at the commit
+  --orphan NAME       Create a new orphan branch
+  -r, --remote        Select from remote branches (+ current branch)
+  --help              Show help for command
 
 EXAMPLES
   $ gh sw              # Interactive branch selection
   $ gh sw feature/auth # Switch to specific branch
   $ gh sw -            # Switch to previous branch
   $ gh sw -a           # Select from all branches
+  $ gh sw -c feature   # Create and switch to new branch
+  $ gh sw -C feature   # Force create and switch to branch
+  $ gh sw -d           # Detach HEAD at current commit
+  $ gh sw -d main      # Detach HEAD at main
+  $ gh sw --orphan new # Create orphan branch
   $ gh sw -r           # Select from remote branches
 ```
 
@@ -61,4 +71,8 @@ EXAMPLES
 - **Direct (`gh sw <branch>`)**: Switch directly to the specified branch
 - **Previous (`gh sw -`)**: Switch to the previously checked out branch
 - **All (`gh sw -a`)**: Display all branches (local + remote) and select one to switch to
+- **Create (`gh sw -c <name>`)**: Create a new branch and switch to it
+- **Force Create (`gh sw -C <name>`)**: Create/reset a branch and switch to it
+- **Detach (`gh sw -d [commit]`)**: Detach HEAD at the specified commit
+- **Orphan (`gh sw --orphan <name>`)**: Create a new orphan branch
 - **Remote (`gh sw -r`)**: Display all remote branches and select one to switch to
