@@ -24,15 +24,25 @@ USAGE
   gh sw [flags]
 
 FLAGS
-  -a, --all       Select from all branches (local + remote)
-  -r, --remote    Select from remote branches (+ current branch)
-  --help          Show help for command
+  -a, --all           Select from all branches (local + remote)
+  -c, --create NAME   Create and switch to a new branch
+  -C, --force-create NAME
+                      Create/reset and switch to a new branch
+  -d, --detach        Detach HEAD at the commit
+  --orphan NAME       Create a new orphan branch
+  -r, --remote        Select from remote branches (+ current branch)
+  --help              Show help for command
 
 EXAMPLES
   $ gh sw              # Interactive branch selection
   $ gh sw feature/auth # Switch to specific branch
   $ gh sw -            # Switch to previous branch
   $ gh sw -a           # Select from all branches
+  $ gh sw -c feature   # Create and switch to new branch
+  $ gh sw -C feature   # Force create and switch to branch
+  $ gh sw -d           # Detach HEAD at current commit
+  $ gh sw -d main      # Detach HEAD at main
+  $ gh sw --orphan new # Create orphan branch
   $ gh sw -r           # Select from remote branches
 `
 )
@@ -51,6 +61,42 @@ func main() {
 			return
 		case "--all", "-a":
 			interactiveSwitchAll(ctx)
+			return
+		case "--create", "-c":
+			if len(args) < 2 {
+				fmt.Fprintln(os.Stderr, "error: branch name required")
+				os.Exit(1)
+			}
+			if err := createBranch(args[1]); err != nil {
+				exitWithStatus(err)
+			}
+			return
+		case "--force-create", "-C":
+			if len(args) < 2 {
+				fmt.Fprintln(os.Stderr, "error: branch name required")
+				os.Exit(1)
+			}
+			if err := forceCreateBranch(args[1]); err != nil {
+				exitWithStatus(err)
+			}
+			return
+		case "--detach", "-d":
+			startPoint := ""
+			if len(args) >= 2 {
+				startPoint = args[1]
+			}
+			if err := detachHead(startPoint); err != nil {
+				exitWithStatus(err)
+			}
+			return
+		case "--orphan":
+			if len(args) < 2 {
+				fmt.Fprintln(os.Stderr, "error: branch name required")
+				os.Exit(1)
+			}
+			if err := orphanBranch(args[1]); err != nil {
+				exitWithStatus(err)
+			}
 			return
 		case "--remote", "-r":
 			interactiveSwitchRemote(ctx)
@@ -337,6 +383,38 @@ func fetchAllBranches(ctx context.Context) ([]string, []string, error) {
 
 func switchBranch(branch string) error {
 	cmd := exec.Command("git", "switch", branch)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
+}
+
+func createBranch(branch string) error {
+	cmd := exec.Command("git", "switch", "-c", branch)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
+}
+
+func forceCreateBranch(branch string) error {
+	cmd := exec.Command("git", "switch", "-C", branch)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
+}
+
+func detachHead(startPoint string) error {
+	args := []string{"switch", "--detach"}
+	if startPoint != "" {
+		args = append(args, startPoint)
+	}
+	cmd := exec.Command("git", args...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
+}
+
+func orphanBranch(branch string) error {
+	cmd := exec.Command("git", "switch", "--orphan", branch)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
